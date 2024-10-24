@@ -13,7 +13,7 @@ from livekit.agents import (
 )
 from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import openai, deepgram, silero
-
+from extract_data import DataExtractor
 
 load_dotenv(dotenv_path=".env.local")
 logger = logging.getLogger("voice-agent")
@@ -26,14 +26,11 @@ def prewarm(proc: JobProcess):
 # Function to generate filler responses
 def generate_filler_response():
     fillers = [
-        "Umm, I hear you.",
-        "Hmm, let me think about that.",
+        "I hear you.",
         "Got it.",
         "Okay.",
         "I see.",
-        "Understood.",
         "Alright.",
-        "Let me consider that.",
     ]
     return random.choice(fillers)
 
@@ -48,6 +45,9 @@ async def before_llm_cb(agent, chat_ctx):
 
 
 async def entrypoint(ctx: JobContext):
+    extractor = DataExtractor()
+    full_transcription = ''
+
     initial_ctx = llm.ChatContext().append(
         role="system",
         text=(
@@ -58,12 +58,13 @@ async def entrypoint(ctx: JobContext):
             "Your goal is to set up meetings with our acquisitions partners by gathering information about the customer's property. "
             "Confirm the property address and who owns it. "
             "Start by saying that your company has been buying properties for over 20 years, closing in all-cash deals within 10 weeks or less. "
-            "Ask about the house's conditions (good, outdated, average, or needs work), how many bedrooms/baths it has, year built, and square footage. "
-            "Ask about kitchen, flooring, electrical/plumbing status, roof age, and foundation status. "
+            "Ask about the house's conditions (good, outdated, average, or needs work), how many bedrooms/baths it has. "
+            "Ask about year built and square footage."
+            "Ask about kitchen, flooring and electrical/plumbing status."
+            "Ask about roof age, and foundation status."
             "Inquire about the property's status (rented, vacant, or lived in) and how long it has been in that condition. "
             "If rented, ask for the rental amount, payment frequency (month-to-month or lease), and lease expiration date. "
             "If vacant, ask how long it has been vacant. "
-            "If the property is not rented or vacant, ask about relocation plans if they were to sell. "
             "Inquire about additional features like HVAC, pool, or other valuable property attributes. "
             "If the customer refuses to answer, mention your company helps families rent properties, fixes and improves homes, and assists tenants with relocation. "
             "Be upbeat, friendly, and genuine. "
@@ -89,10 +90,32 @@ async def entrypoint(ctx: JobContext):
         before_llm_cb=before_llm_cb,
     )
 
+    def on_transcription_update(transcription: str):
+        nonlocal full_transcription
+        full_transcription += transcription + " "
+
+    assistant.on('user_final_transcript', on_transcription_update)
+
     assistant.start(ctx.room, participant)
 
     # The agent should be polite and greet the user when it joins :)
     await assistant.say("Hello, am I speaking with David, the owner of 42-43 California Street?", allow_interruptions=True)
+
+    # # Now that the conversation has finished, extract the data
+    # extracted_data = extractor.extract_information(full_transcription)
+    # logger.info(f"Extracted data: {extracted_data}")
+
+    # Register a shutdown callback to handle the room disconnect event
+    async def on_room_shutdown():
+        logger.info("Room has been disconnected. Performing data extraction.")
+        extracted_data = extractor.extract_information(full_transcription)
+        logger.info(f"Extracted data: {extracted_data}")
+
+    # Add shutdown callback to trigger when the room shuts down
+    ctx.add_shutdown_callback(on_room_shutdown)
+
+    # Keep the task running until shutdown
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
