@@ -1,0 +1,9 @@
+{
+    "trunk": {
+      "name": "Demo Outbound Trunk",
+      "address": "sfco.pstn.twilio.com",
+      "numbers": ["+12392142485"],
+      "auth_username": "sfco-trunk-auth-user",
+      "auth_password": "LinternaVerde88$"
+    }
+  }
