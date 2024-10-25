@@ -48,7 +48,6 @@ async def before_llm_cb(agent, chat_ctx):
 async def entrypoint(ctx: JobContext):
     #Iniciar instancia de la clase DataExtractor la cual exrae los datos importantes de la transcripcion al finalizar la conversacion. 
     extractor = DataExtractor()
-    full_transcription = 'transcription'
 
     initial_ctx = llm.ChatContext().append(
         role="system",
@@ -60,15 +59,18 @@ async def entrypoint(ctx: JobContext):
             "Your goal is to set up meetings with our acquisitions partners by gathering information about the customer's property. "
             "Confirm the property address and who owns it. "
             "Start by saying that your company has been buying properties for over 20 years, closing in all-cash deals within 10 weeks or less. "
-            "Ask about the house's conditions (good, outdated, average, or needs work), how many bedrooms/baths it has. "
+            "Ask about the house's conditions, how many bedrooms/baths it has. "
             "Ask about year built and square footage."
-            "Ask about kitchen, flooring and electrical/plumbing status."
+            "Ask about kitchen and flooring."
+            "Ask about electrical/plumbing status."
             "Ask about roof age, and foundation status."
             "Inquire about the property's status (rented, vacant, or lived in) and how long it has been in that condition. "
-            "If rented, ask for the rental amount, payment frequency (month-to-month or lease), and lease expiration date. "
+            "If rented, ask for the rental amount, and lease expiration date. "
             "If vacant, ask how long it has been vacant. "
             "Inquire about additional features like HVAC, pool, or other valuable property attributes. "
             "If the customer refuses to answer, mention your company helps families rent properties, fixes and improves homes, and assists tenants with relocation. "
+            "If the customers ask what do you mean by house conditions say (good, outdated, average, or needs work)."
+            "When setting up the appointment make sure to specify the time zone "
             "Be upbeat, friendly, and genuine. "
         ),
     )
@@ -96,13 +98,6 @@ async def entrypoint(ctx: JobContext):
         # Usar el callback para generar las filler phrases 
         before_llm_cb=before_llm_cb,
     )
-
-    #Funcion que crea una variable y va guardando la transcripcion completa ahi
-    def on_transcription_update(transcription: str):
-        nonlocal full_transcription
-        full_transcription += transcription + " "
-    #Metodo para actualizar la transcripcion cada vez que el usuario termina de hablar
-    assistant.on('user_transcript', on_transcription_update)
     
     #Metodo para iniciar el room
     assistant.start(ctx.room, participant)
@@ -112,8 +107,16 @@ async def entrypoint(ctx: JobContext):
     """
     EN CASO DE NO QUERER UTILIZAR LA CLASE "extract_data.py" BORRAR EL CODIGO DE ABAJO
     """
+    #funcion para extraer solo el texto del objeto assistant.chat_ctx.messages
+    def extract_conversation_text(messages):
+        # Extract content from each message in the list
+        text_content = " ".join([msg.content for msg in messages if msg.content])
+        
+        return text_content
+
     # Callback para cuando se desconecte el room
     async def on_room_shutdown():
+        full_transcription = extract_conversation_text(assistant.chat_ctx.messages)
         logger.info(f"Room has been disconnected. Performing data extraction: {full_transcription}")
         logger.info('------------------------------------------------------------')
         extracted_data = extractor.extract_information(full_transcription)

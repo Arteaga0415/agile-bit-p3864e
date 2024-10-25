@@ -58,6 +58,7 @@ class DataExtractor:
             "kitchen condition, flooring condition, electrical and plumbing condition, foundation condition, roof age,"
             "whether HVAC is present, whether a pool is present, whether the property is rented, vacant, or lived in by the owner, "
             "how long it has been in that condition, rental amount, payment frequency, and rental contract expiration date. "
+            "Include the appointment date and time, in TMZ (year/month/day/hour/minute/second)"
             "Also, include the names of the owner(s) if mentioned. Format the extracted information in a structured JSON format."
             "\n\nConversation Transcription:\n"
             f"{transcription}\n"
@@ -77,7 +78,7 @@ class DataExtractor:
                 {"role": "user", "content": prompt}
             ]
         )
-        logger.info(f"chat response: {response.choices[0].message.content}")
+        logger.info(f"LLM json object response: {response.choices[0].message.content}")
         logger.info('------------------------------------------------------------')
         return response.choices[0].message.content
     
