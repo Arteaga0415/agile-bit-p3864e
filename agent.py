@@ -15,15 +15,17 @@ from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import openai, deepgram, silero
 from extract_data import DataExtractor
 
+"""
+VER INSCRUTCIONS.md PARA INSTRUCCIONES SIMPLES O EL README.md PARA LAS INSTRUCCIONES DE LIVEKIT
+"""
 load_dotenv(dotenv_path=".env.local")
 logger = logging.getLogger("voice-agent")
 
-
+#Funcion para acitvar el VAD (Voice Automatic Detection)
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
-
-# Function to generate filler responses
+# Funcion para generar filler responses
 def generate_filler_response():
     fillers = [
         "I hear you.",
@@ -31,9 +33,9 @@ def generate_filler_response():
         "Okay.",
         "I see.",
         "Alright.",
+        "Awesome.",
     ]
     return random.choice(fillers)
-
 
 # Callback function para activar las filler phrases mientras la respuesta se genera
 async def before_llm_cb(agent, chat_ctx):
@@ -43,10 +45,10 @@ async def before_llm_cb(agent, chat_ctx):
     #Se devuelve NONE para que el flow continue en el pipeline
     return None
 
-
 async def entrypoint(ctx: JobContext):
+    #Iniciar instancia de la clase DataExtractor la cual exrae los datos importantes de la transcripcion al finalizar la conversacion. 
     extractor = DataExtractor()
-    full_transcription = ''
+    full_transcription = 'transcription'
 
     initial_ctx = llm.ChatContext().append(
         role="system",
@@ -72,12 +74,17 @@ async def entrypoint(ctx: JobContext):
     )
 
     logger.info(f"Connecting to room {ctx.room.name}")
+    logger.info('------------------------------------------------------------')
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
-    # Esperar a que le primer participante se conecte
+    # Esperar a que el participante se conecte
     participant = await ctx.wait_for_participant()
     logger.info(f"Starting voice assistant for participant {participant.identity}")
+    logger.info('------------------------------------------------------------')
 
+    """
+    EN CASO DE NO QUERER UTILIZAR LAS FILLER PHRASES BORRAR "preemptive_synthesis=True," Y "before_llm_cb=before_llm_cb," DEL "VoicePipelineAgent"
+    """
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
@@ -90,30 +97,30 @@ async def entrypoint(ctx: JobContext):
         before_llm_cb=before_llm_cb,
     )
 
+    #Funcion que crea una variable y va guardando la transcripcion completa ahi
     def on_transcription_update(transcription: str):
         nonlocal full_transcription
         full_transcription += transcription + " "
-
-    assistant.on('user_final_transcript', on_transcription_update)
-
+    #Metodo para actualizar la transcripcion cada vez que el usuario termina de hablar
+    assistant.on('user_transcript', on_transcription_update)
+    
+    #Metodo para iniciar el room
     assistant.start(ctx.room, participant)
+    #Metodo para iniciar la conversacion
+    await assistant.say(f"Hello, am I speaking with David, the owner of 42-43 California Street?", allow_interruptions=True)
 
-    # The agent should be polite and greet the user when it joins :)
-    await assistant.say("Hello, am I speaking with David, the owner of 42-43 California Street?", allow_interruptions=True)
-
-    # # Now that the conversation has finished, extract the data
-    # extracted_data = extractor.extract_information(full_transcription)
-    # logger.info(f"Extracted data: {extracted_data}")
-
-    # Register a shutdown callback to handle the room disconnect event
+    """
+    EN CASO DE NO QUERER UTILIZAR LA CLASE "extract_data.py" BORRAR EL CODIGO DE ABAJO
+    """
+    # Callback para cuando se desconecte el room
     async def on_room_shutdown():
-        logger.info("Room has been disconnected. Performing data extraction.")
+        logger.info(f"Room has been disconnected. Performing data extraction: {full_transcription}")
+        logger.info('------------------------------------------------------------')
         extracted_data = extractor.extract_information(full_transcription)
         logger.info(f"Extracted data: {extracted_data}")
-
-    # Add shutdown callback to trigger when the room shuts down
+        logger.info('------------------------------------------------------------')
+    # Metodo del ctx para llamar un callback una vez se desconecte el room
     ctx.add_shutdown_callback(on_room_shutdown)
-
     # Keep the task running until shutdown
     await asyncio.Event().wait()
 

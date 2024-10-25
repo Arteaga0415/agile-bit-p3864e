@@ -8,6 +8,12 @@ client = OpenAI()
 logger = logging.getLogger('data-extractor')
 logger.setLevel(logging.INFO)
 
+"""
+IMPORTANTE 
+SE DEBE CORRER ESTE COMANDO EN LA TERMINAL PARA IMPORTAR LA API_KEY DE OPENAI
+```export OPENAI_API_KEY="your_api_key_here"```
+"""
+
 class DataExtractor:
     #por defecto se utilizara el gpt4o-mini pero se puede especificar cualquier otro de openai
     def __init__(self, model='gpt-4o-mini'):
@@ -24,6 +30,7 @@ class DataExtractor:
         #Generar prompt para extraer la informacion
         prompt = self._build_prompt(conversation_transcription)
         logger.info('Sending transcription for extraction to LLM')
+        logger.info('------------------------------------------------------------')
 
         # Make the request to OpenAI
         try:
@@ -33,6 +40,7 @@ class DataExtractor:
             return extracted_info
         except Exception as e:
             logger.error(f"Failed to get a response from OpenAI: {e}")
+            logger.info('ERROR ------------------------------------------------------------ ERROR')
             return {"error": str(e)}
 
     """
@@ -70,6 +78,7 @@ class DataExtractor:
             ]
         )
         logger.info(f"chat response: {response.choices[0].message.content}")
+        logger.info('------------------------------------------------------------')
         return response.choices[0].message.content
     
     """
@@ -86,6 +95,7 @@ class DataExtractor:
             return extracted_info
         except json.JSONDecodeError as error: 
             logger.error(f"Failed to parse GPT Response: {error}")
+            logger.info('ERROR ------------------------------------------------------------ ERROR')
             return {"error": "Failed to parse GPT Response"}
 
 async def run_extraction(conversation_transcription: str):
